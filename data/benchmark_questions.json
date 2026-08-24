@@ -1,0 +1,12 @@
+[
+  {"question": "What is the capital of Australia?", "answer": "Canberra"},
+  {"question": "If a train travels 60 miles in 1.5 hours, what is its average speed in mph?", "answer": "40"},
+  {"question": "What is the chemical symbol for gold?", "answer": "Au"},
+  {"question": "In what year did World War II end?", "answer": "1945"},
+  {"question": "What is 17 multiplied by 23?", "answer": "391"},
+  {"question": "Who wrote 'Pride and Prejudice'?", "answer": "Jane Austen"},
+  {"question": "What is the largest planet in our solar system?", "answer": "Jupiter"},
+  {"question": "What is the boiling point of water in Celsius at sea level?", "answer": "100"},
+  {"question": "How many sides does a hexagon have?", "answer": "6"},
+  {"question": "What is the square root of 144?", "answer": "12"}
+]
