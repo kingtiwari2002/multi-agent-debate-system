@@ -55,6 +55,8 @@ class DebateRun:
     disagreement_rate: float = 0.0
     total_llm_calls: int = 0
     termination_reason: str = ""
+    judge_a_config: dict = field(default_factory=dict)
+    judge_b_config: dict = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
@@ -74,5 +76,7 @@ class DebateRun:
             "disagreement_rate": self.disagreement_rate,
             "total_llm_calls": self.total_llm_calls,
             "termination_reason": self.termination_reason,
+            "judge_a_config": self.judge_a_config,
+            "judge_b_config": self.judge_b_config,
             "created_at": self.created_at,
         }

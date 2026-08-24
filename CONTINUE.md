@@ -17,18 +17,45 @@ file, [README.md](README.md), and [multi-agent-debate-system-plan.md](multi-agen
 | 5b | Frontend: live debate view (per-agent columns) | Done |
 | 5c | Frontend: judgment panel + history/replay view | Done |
 | 5d | Polish: call-count display, loading/error states, responsive layout | Done |
-| 5e | Config/admin panel — per-agent model picker with default preset | **Not started — next step** |
+| 5e | Config/admin panel — per-agent model picker with default preset | Done |
 
-Everything through 5d has been exercised end-to-end with stubbed LLM adapters (see
+Everything through 5e has been exercised end-to-end with stubbed LLM adapters (see
 [Verification approach](#verification-approach-used-so-far) below) — but **no run has
 been done yet against real API keys**. Do that before trusting cost/latency
 assumptions or shipping this anywhere.
 
 ## How to resume
 
-Tell whoever/whatever picks this up next: *"Read CONTINUE.md, then proceed with Phase
-5e"* — that's enough context to continue without re-deriving the architecture. If the
-direction has changed since this was written, update the status table above first.
+Phase 5e is done. Next candidates are the Phase 6 items under
+[Known gaps vs. the original plan](#known-gaps-vs-the-original-plan) — but check
+`avg_rounds_to_termination` from `python run_eval.py` against real API keys first to
+see whether they're actually worth building. If the direction has changed since this
+was written, update the status table above first.
+
+### Phase 5e implementation notes
+
+- `web/backend/main.py`'s `StartDebateRequest` now accepts optional `agents` (full
+  `AgentConfig` roster), `judge_a`, and `judge_b` overrides; omitting them falls back
+  to `build_agents(mode)` and the hardcoded judge defaults exactly as before.
+- New `GET /api/presets/{mode}` returns the default roster + judge config as JSON so
+  the frontend never hardcodes the preset values — it's the same source of truth the
+  "Reset to default" button re-fetches from.
+- `DebateOrchestrator` takes `judge_a_provider`/`judge_a_model`/`judge_b_provider`/
+  `judge_b_model` (all defaulted to the original hardcoded values), and `DebateRun`
+  now persists `judge_a_config`/`judge_b_config` alongside `agents` so past runs stay
+  fully reproducible, judges included — `JudgePanel` reads this back to show each
+  judge's model in its card label.
+- Frontend: `ConfigPanel.jsx` is a collapsed-by-default panel with one row per agent
+  slot (provider/model dropdowns, persona text, temperature) plus one row per judge
+  (provider/model only). `LiveDebateView` owns `mode`/`agents`/`judgeA`/`judgeB` state,
+  fetches presets on mode change, and threads the (possibly edited) roster through
+  `startDebate`.
+- Verified end-to-end with a stubbed adapter (custom roster override, judge-config
+  override, the `at least one debater is required` validation path, and the full
+  WebSocket statement stream) plus a real browser run against the built frontend —
+  screenshots showed the config panel, per-agent opinion text, and judge cards with
+  model names all rendering correctly. No test files were committed (same throwaway
+  convention as every other phase — see below).
 
 ## Key decisions worth knowing (not obvious from reading the code alone)
 
@@ -92,9 +119,10 @@ harness (Phase 4) results suggest agents are burning rounds without converging �
 check `avg_rounds_to_termination` from `python run_eval.py` first before building
 either.
 
-## What Phase 5e should include
+## What Phase 5e included
 
-From the original scoping discussion:
+From the original scoping discussion (all now built — see "Phase 5e implementation
+notes" above for how):
 
 - Per-agent (and per-judge) row: model dropdown + temperature/persona field, for all 5
   agent slots + 2 judge slots.
@@ -148,7 +176,8 @@ web/frontend/src/api.js               REST + WebSocket client (same-origin)
 web/frontend/src/App.jsx              Tab shell (New debate / History)
 web/frontend/src/views/               LiveDebateView, HistoryView
 web/frontend/src/components/          DebateForm, AgentColumn, FactCheckPanel,
-                                       StatusBanner, JudgePanel, HistoryTable, ReplayView
+                                       StatusBanner, JudgePanel, HistoryTable, ReplayView,
+                                       ConfigPanel
 
 main.py          CLI: single debate
 run_eval.py      CLI: eval harness

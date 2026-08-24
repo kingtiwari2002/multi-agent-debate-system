@@ -52,6 +52,8 @@ export default function ReplayView({ runId, onBack }) {
             tieBreakTriggered={run.tie_break_triggered}
             finalWinner={run.final_winner}
             disagreementRate={run.disagreement_rate}
+            judgeAConfig={run.judge_a_config}
+            judgeBConfig={run.judge_b_config}
           />
         </>
       )}

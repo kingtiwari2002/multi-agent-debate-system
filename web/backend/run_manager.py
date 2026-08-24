@@ -1,8 +1,8 @@
 import queue
 import threading
 
+from src.models import AgentConfig
 from src.orchestrator import DebateOrchestrator
-from src.presets import build_agents
 
 DONE_SENTINEL = {"type": "done"}
 
@@ -15,10 +15,23 @@ class RunManager:
     def __init__(self):
         self._queues: dict[str, queue.Queue] = {}
 
-    def start(self, run_id: str, topic: str, mode: str, rounds: int) -> None:
+    def start(
+        self,
+        run_id: str,
+        topic: str,
+        mode: str,
+        rounds: int,
+        agent_configs: list[AgentConfig],
+        judge_a_config: tuple[str, str],
+        judge_b_config: tuple[str, str],
+    ) -> None:
         q: queue.Queue = queue.Queue()
         self._queues[run_id] = q
-        thread = threading.Thread(target=self._run, args=(run_id, topic, mode, rounds, q), daemon=True)
+        thread = threading.Thread(
+            target=self._run,
+            args=(run_id, topic, mode, rounds, agent_configs, judge_a_config, judge_b_config, q),
+            daemon=True,
+        )
         thread.start()
 
     def queue_for(self, run_id: str) -> "queue.Queue | None":
@@ -28,12 +41,20 @@ class RunManager:
         self._queues.pop(run_id, None)
 
     @staticmethod
-    def _run(run_id: str, topic: str, mode: str, rounds: int, q: queue.Queue) -> None:
+    def _run(
+        run_id: str,
+        topic: str,
+        mode: str,
+        rounds: int,
+        agent_configs: list[AgentConfig],
+        judge_a_config: tuple[str, str],
+        judge_b_config: tuple[str, str],
+        q: queue.Queue,
+    ) -> None:
         def on_event(event: dict) -> None:
             q.put(event)
 
         try:
-            agent_configs = build_agents(mode)
             orchestrator = DebateOrchestrator(
                 topic=topic,
                 agent_configs=agent_configs,
@@ -41,6 +62,10 @@ class RunManager:
                 mode=mode,
                 on_event=on_event,
                 run_id=run_id,
+                judge_a_provider=judge_a_config[0],
+                judge_a_model=judge_a_config[1],
+                judge_b_provider=judge_b_config[0],
+                judge_b_model=judge_b_config[1],
             )
             run = orchestrator.run()
             q.put({"type": "done", "run": run.to_dict()})
