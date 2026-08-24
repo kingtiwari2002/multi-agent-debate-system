@@ -1,14 +1,13 @@
 import { useState } from "react";
 
-export default function DebateForm({ onStart, disabled }) {
+export default function DebateForm({ mode, onModeChange, onStart, disabled }) {
   const [topic, setTopic] = useState("");
-  const [mode, setMode] = useState("adversarial");
   const [rounds, setRounds] = useState(3);
 
   function handleSubmit(e) {
     e.preventDefault();
     if (!topic.trim()) return;
-    onStart(topic.trim(), mode, Number(rounds));
+    onStart(topic.trim(), Number(rounds));
   }
 
   return (
@@ -21,7 +20,7 @@ export default function DebateForm({ onStart, disabled }) {
         disabled={disabled}
         required
       />
-      <select value={mode} onChange={(e) => setMode(e.target.value)} disabled={disabled}>
+      <select value={mode} onChange={(e) => onModeChange(e.target.value)} disabled={disabled}>
         <option value="adversarial">Adversarial (2 pro / 2 con / fact-checker)</option>
         <option value="ensemble">Ensemble (5 independent solvers)</option>
       </select>

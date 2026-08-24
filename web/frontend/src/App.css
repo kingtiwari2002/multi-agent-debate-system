@@ -227,6 +227,81 @@
   cursor: not-allowed;
 }
 
+.config-panel {
+  margin-bottom: 16px;
+}
+
+.config-panel__toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px 0;
+}
+
+.config-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+  background: var(--panel);
+}
+
+.config-row {
+  display: grid;
+  grid-template-columns: 190px 110px 150px 1fr 70px;
+  gap: 8px;
+  align-items: center;
+}
+
+.config-row--judge {
+  grid-template-columns: 200px 110px 150px;
+}
+
+.config-row__id {
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.config-row__role {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.config-row select,
+.config-row input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+}
+
+.config-panel__reset {
+  align-self: flex-start;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.config-panel__reset:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .status-banner {
   display: flex;
   gap: 12px;

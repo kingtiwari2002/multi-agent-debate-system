@@ -1,13 +1,18 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import DebateForm from "../components/DebateForm";
 import AgentColumn from "../components/AgentColumn";
 import FactCheckPanel from "../components/FactCheckPanel";
 import StatusBanner from "../components/StatusBanner";
 import JudgePanel from "../components/JudgePanel";
-import { startDebate, connectDebateSocket } from "../api";
+import ConfigPanel from "../components/ConfigPanel";
+import { startDebate, connectDebateSocket, fetchPresets } from "../api";
 
 export default function LiveDebateView() {
   const [status, setStatus] = useState("idle"); // idle | connecting | running | done | error
+  const [mode, setMode] = useState("adversarial");
+  const [agents, setAgents] = useState([]);
+  const [judgeA, setJudgeA] = useState(null);
+  const [judgeB, setJudgeB] = useState(null);
   const [agentOrder, setAgentOrder] = useState([]);
   const [statementsByAgent, setStatementsByAgent] = useState({});
   const [droppedAgents, setDroppedAgents] = useState(new Set());
@@ -17,6 +22,27 @@ export default function LiveDebateView() {
   const [errorMessage, setErrorMessage] = useState("");
   const wsRef = useRef(null);
   const doneReceivedRef = useRef(false);
+
+  const loadPresets = useCallback((forMode) => {
+    fetchPresets(forMode)
+      .then(({ agents: defaultAgents, judge_a, judge_b }) => {
+        setAgents(defaultAgents);
+        setJudgeA(judge_a);
+        setJudgeB(judge_b);
+      })
+      .catch(() => {
+        // Config panel just stays empty/hidden if presets can't be loaded — the
+        // debate can still start using the backend's own defaults.
+      });
+  }, []);
+
+  useEffect(() => {
+    loadPresets(mode);
+  }, [mode, loadPresets]);
+
+  function handleModeChange(nextMode) {
+    setMode(nextMode);
+  }
 
   const reset = useCallback(() => {
     setAgentOrder([]);
@@ -70,11 +96,11 @@ export default function LiveDebateView() {
     }
   }, []);
 
-  async function handleStart(topic, mode, rounds) {
+  async function handleStart(topic, rounds) {
     reset();
     setStatus("connecting");
     try {
-      const { run_id } = await startDebate(topic, mode, rounds);
+      const { run_id } = await startDebate(topic, mode, rounds, agents, judgeA, judgeB);
       const ws = connectDebateSocket(run_id, {
         onEvent: (event) => {
           setStatus((prevStatus) => (prevStatus === "connecting" ? "running" : prevStatus));
@@ -99,7 +125,19 @@ export default function LiveDebateView() {
 
   return (
     <div>
-      <DebateForm onStart={handleStart} disabled={isRunning} />
+      <DebateForm mode={mode} onModeChange={handleModeChange} onStart={handleStart} disabled={isRunning} />
+      {judgeA && judgeB && (
+        <ConfigPanel
+          agents={agents}
+          judgeA={judgeA}
+          judgeB={judgeB}
+          onAgentsChange={setAgents}
+          onJudgeAChange={setJudgeA}
+          onJudgeBChange={setJudgeB}
+          onReset={() => loadPresets(mode)}
+          disabled={isRunning}
+        />
+      )}
       <StatusBanner status={status} finalRun={finalRun} errorMessage={errorMessage} tieBreakTriggered={tieBreakTriggered} />
       <FactCheckPanel flags={claimFlags} />
 
@@ -121,6 +159,8 @@ export default function LiveDebateView() {
           tieBreakTriggered={finalRun.tie_break_triggered}
           finalWinner={finalRun.final_winner}
           disagreementRate={finalRun.disagreement_rate}
+          judgeAConfig={finalRun.judge_a_config}
+          judgeBConfig={finalRun.judge_b_config}
         />
       )}
     </div>

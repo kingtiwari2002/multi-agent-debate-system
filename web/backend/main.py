@@ -17,6 +17,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from run_manager import run_manager
+from src.models import AgentConfig
+from src.presets import build_agents
+
+DEFAULT_JUDGE_A = {"provider": "anthropic", "model": "claude-sonnet-5"}
+DEFAULT_JUDGE_B = {"provider": "openai", "model": "gpt-4o"}
 
 load_dotenv()
 
@@ -35,10 +40,51 @@ app.add_middleware(
 )
 
 
+class AgentConfigPayload(BaseModel):
+    agent_id: str
+    persona: str
+    position: str
+    provider: str = "anthropic"
+    model: str = "claude-sonnet-5"
+    temperature: float = 0.7
+    role: str = "debater"
+
+
+class JudgeConfigPayload(BaseModel):
+    provider: str
+    model: str
+
+
 class StartDebateRequest(BaseModel):
     topic: str
     mode: str = "adversarial"
     rounds: int = 3
+    agents: list[AgentConfigPayload] | None = None
+    judge_a: JudgeConfigPayload | None = None
+    judge_b: JudgeConfigPayload | None = None
+
+
+@app.get("/api/presets/{mode}")
+def get_presets(mode: str):
+    if mode not in ("adversarial", "ensemble"):
+        raise HTTPException(400, "mode must be 'adversarial' or 'ensemble'")
+    return {
+        "agents": [asdict_agent(a) for a in build_agents(mode)],
+        "judge_a": DEFAULT_JUDGE_A,
+        "judge_b": DEFAULT_JUDGE_B,
+    }
+
+
+def asdict_agent(agent: AgentConfig) -> dict:
+    return {
+        "agent_id": agent.agent_id,
+        "persona": agent.persona,
+        "position": agent.position,
+        "provider": agent.provider,
+        "model": agent.model,
+        "temperature": agent.temperature,
+        "role": agent.role,
+    }
 
 
 @app.post("/api/debates")
@@ -50,8 +96,24 @@ def start_debate(req: StartDebateRequest):
     if not (1 <= req.rounds <= 10):
         raise HTTPException(400, "rounds must be between 1 and 10")
 
+    if req.agents:
+        if not any(a.role == "debater" for a in req.agents):
+            raise HTTPException(400, "at least one debater is required")
+        agent_configs = [AgentConfig(**a.model_dump()) for a in req.agents]
+    else:
+        agent_configs = build_agents(req.mode)
+
+    judge_a_config = (req.judge_a.provider, req.judge_a.model) if req.judge_a else (
+        DEFAULT_JUDGE_A["provider"],
+        DEFAULT_JUDGE_A["model"],
+    )
+    judge_b_config = (req.judge_b.provider, req.judge_b.model) if req.judge_b else (
+        DEFAULT_JUDGE_B["provider"],
+        DEFAULT_JUDGE_B["model"],
+    )
+
     run_id = str(uuid.uuid4())[:8]
-    run_manager.start(run_id, req.topic, req.mode, req.rounds)
+    run_manager.start(run_id, req.topic, req.mode, req.rounds, agent_configs, judge_a_config, judge_b_config)
     return {"run_id": run_id}
 
 

@@ -40,6 +40,10 @@ class DebateOrchestrator:
         repetition_threshold: float = 0.92,
         on_event: Optional[EventCallback] = None,
         run_id: Optional[str] = None,
+        judge_a_provider: str = "anthropic",
+        judge_a_model: str = "claude-sonnet-5",
+        judge_b_provider: str = "openai",
+        judge_b_model: str = "gpt-4o",
     ):
         self.topic = topic
         self.mode = mode
@@ -60,8 +64,10 @@ class DebateOrchestrator:
         # Judge B defaults to a different model family than Judge A to reduce
         # self-preference bias (Section 4) — both are also model-distinct from
         # the debater roster where the default presets are used.
-        self.judge_a = RubricJudge()
-        self.judge_b = AdversarialAuditorJudge()
+        self.judge_a = RubricJudge(judge_a_provider, judge_a_model)
+        self.judge_b = AdversarialAuditorJudge(judge_b_provider, judge_b_model)
+        self.judge_a_config = {"provider": judge_a_provider, "model": judge_a_model}
+        self.judge_b_config = {"provider": judge_b_provider, "model": judge_b_model}
         self.repetition_detector = RepetitionDetector(threshold=repetition_threshold)
 
         self.transcript: list[Statement] = []
@@ -151,6 +157,8 @@ class DebateOrchestrator:
             disagreement_rate=disagreement_rate,
             total_llm_calls=total_llm_calls,
             termination_reason="max_rounds_reached",
+            judge_a_config=self.judge_a_config,
+            judge_b_config=self.judge_b_config,
         )
         self._save(run)
         return run

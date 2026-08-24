@@ -48,12 +48,17 @@ function VerdictCard({ verdict, label }) {
   );
 }
 
-export default function JudgePanel({ judgeVerdicts, judgesAgreed, tieBreakTriggered, finalWinner, disagreementRate }) {
+export default function JudgePanel({ judgeVerdicts, judgesAgreed, tieBreakTriggered, finalWinner, disagreementRate, judgeAConfig, judgeBConfig }) {
   if (!judgeVerdicts || judgeVerdicts.length === 0) return null;
 
   const initial = judgeVerdicts.slice(0, 2);
   const retry = judgeVerdicts.slice(2, 4);
-  const labelFor = (v, suffix) => `${v.judge_id === "judge_a_rubric" ? "Judge A — Rubric Scorer" : "Judge B — Adversarial Auditor"}${suffix}`;
+  const labelFor = (v, suffix) => {
+    const isA = v.judge_id === "judge_a_rubric";
+    const config = isA ? judgeAConfig : judgeBConfig;
+    const base = isA ? "Judge A — Rubric Scorer" : "Judge B — Adversarial Auditor";
+    return `${base}${config?.model ? ` (${config.model})` : ""}${suffix}`;
+  };
 
   return (
     <div className="judge-panel">
