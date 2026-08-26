@@ -1,8 +1,9 @@
 import os
+import time
 
 from anthropic import Anthropic
 
-from .base import LLMAdapter
+from .base import GenerationResult, LLMAdapter
 
 
 class AnthropicAdapter(LLMAdapter):
@@ -10,7 +11,8 @@ class AnthropicAdapter(LLMAdapter):
         self.model = model
         self._client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    def generate(self, system: str, user: str, temperature: float = 0.7) -> str:
+    def generate(self, system: str, user: str, temperature: float = 0.7) -> GenerationResult:
+        start = time.perf_counter()
         response = self._client.messages.create(
             model=self.model,
             max_tokens=1024,
@@ -18,4 +20,10 @@ class AnthropicAdapter(LLMAdapter):
             system=system,
             messages=[{"role": "user", "content": user}],
         )
-        return response.content[0].text
+        latency = time.perf_counter() - start
+        return GenerationResult(
+            text=response.content[0].text,
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            latency_seconds=latency,
+        )

@@ -5,11 +5,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Callable, Optional
 
+from .adapters import GenerationResult
 from .agent import DebateAgent
 from .fact_checker import FactCheckerAgent
 from .judge import AdversarialAuditorJudge, RubricJudge
 from .judge_stats import record_and_get_disagreement_rate
 from .models import AgentConfig, ClaimFlag, DebateRun, JudgeVerdict, Statement
+from .pricing import estimate_cost_usd
 from .repetition import RepetitionDetector
 
 RUNS_DIR = Path(__file__).resolve().parent.parent / "runs"
@@ -73,14 +75,15 @@ class DebateOrchestrator:
         self.transcript: list[Statement] = []
         self.claim_flags: list[ClaimFlag] = []
         self.dropped_agents: set[str] = set()
+        self.unpriced_calls = 0  # statements whose (provider, model) has no pricing entry
 
     def run(self) -> DebateRun:
         run_id = self.run_id or str(uuid.uuid4())[:8]
 
         # Round 0 — opening statements, no cross-visibility
         for agent in self.debaters:
-            content = agent.opening_statement(self.topic)
-            self._append_statement(Statement(agent.config.agent_id, round=0, phase="opening", content=content))
+            result = agent.opening_statement(self.topic)
+            self._append_statement(self._build_statement(agent.config, round=0, phase="opening", result=result))
 
         # Rounds 1..max_rounds-1 — rebuttals
         for round_num in range(1, self.max_rounds):
@@ -90,8 +93,8 @@ class DebateOrchestrator:
 
             round_statements: list[Statement] = []
             for agent in order:
-                content = agent.rebuttal(self.topic, round_num, list(self.transcript), active_flags_text)
-                statement = Statement(agent.config.agent_id, round=round_num, phase="rebuttal", content=content)
+                result = agent.rebuttal(self.topic, round_num, list(self.transcript), active_flags_text)
+                statement = self._build_statement(agent.config, round=round_num, phase="rebuttal", result=result)
 
                 if self._check_and_apply_repetition(agent, statement):
                     continue
@@ -108,8 +111,8 @@ class DebateOrchestrator:
         # Final round — closing statements
         for agent in self._active_debaters():
             unresolved = self._format_pending_flags()
-            content = agent.closing_statement(self.topic, list(self.transcript), unresolved)
-            self._append_statement(Statement(agent.config.agent_id, round=self.max_rounds, phase="closing", content=content))
+            result = agent.closing_statement(self.topic, list(self.transcript), unresolved)
+            self._append_statement(self._build_statement(agent.config, round=self.max_rounds, phase="closing", result=result))
 
         # Judgment phase — both judges run independently, neither sees the other's verdict.
         verdict_a = self.judge_a.judge(self.topic, self.agent_configs, self.transcript)
@@ -141,6 +144,33 @@ class DebateOrchestrator:
             + self.judge_b.call_count
         )
 
+        fc = self.fact_checker
+        total_input_tokens = (
+            sum(s.input_tokens for s in self.transcript)
+            + sum(v.input_tokens for v in judge_verdicts)
+            + (fc.total_input_tokens if fc else 0)
+        )
+        total_output_tokens = (
+            sum(s.output_tokens for s in self.transcript)
+            + sum(v.output_tokens for v in judge_verdicts)
+            + (fc.total_output_tokens if fc else 0)
+        )
+        total_latency_seconds = (
+            sum(s.latency_seconds for s in self.transcript)
+            + sum(v.latency_seconds for v in judge_verdicts)
+            + (fc.total_latency_seconds if fc else 0.0)
+        )
+        total_cost_usd = (
+            sum(s.cost_usd for s in self.transcript if s.cost_usd is not None)
+            + sum(v.cost_usd for v in judge_verdicts if v.cost_usd is not None)
+            + (fc.total_cost_usd if fc else 0.0)
+        )
+        unpriced_calls = (
+            self.unpriced_calls
+            + sum(1 for v in judge_verdicts if v.cost_usd is None)
+            + (fc.unpriced_calls if fc else 0)
+        )
+
         run = DebateRun(
             run_id=run_id,
             topic=self.topic,
@@ -159,6 +189,11 @@ class DebateOrchestrator:
             termination_reason="max_rounds_reached",
             judge_a_config=self.judge_a_config,
             judge_b_config=self.judge_b_config,
+            total_input_tokens=total_input_tokens,
+            total_output_tokens=total_output_tokens,
+            total_latency_seconds=total_latency_seconds,
+            total_cost_usd=total_cost_usd,
+            unpriced_calls=unpriced_calls,
         )
         self._save(run)
         return run
@@ -166,8 +201,23 @@ class DebateOrchestrator:
     def _run_tie_break_round(self, verdict_a: JudgeVerdict, verdict_b: JudgeVerdict) -> None:
         tie_break_round = self.max_rounds + 1
         for agent in self._active_debaters():
-            content = agent.tie_break_response(self.topic, list(self.transcript), verdict_a.reasoning, verdict_b.reasoning)
-            self._append_statement(Statement(agent.config.agent_id, round=tie_break_round, phase="tie_break", content=content))
+            result = agent.tie_break_response(self.topic, list(self.transcript), verdict_a.reasoning, verdict_b.reasoning)
+            self._append_statement(self._build_statement(agent.config, round=tie_break_round, phase="tie_break", result=result))
+
+    def _build_statement(self, config: AgentConfig, round: int, phase: str, result: GenerationResult) -> Statement:
+        cost = estimate_cost_usd(config.provider, config.model, result.input_tokens, result.output_tokens)
+        if cost is None:
+            self.unpriced_calls += 1
+        return Statement(
+            config.agent_id,
+            round=round,
+            phase=phase,
+            content=result.text,
+            latency_seconds=result.latency_seconds,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            cost_usd=cost,
+        )
 
     @staticmethod
     def _verdicts_agree(verdict_a: JudgeVerdict, verdict_b: JudgeVerdict) -> bool:
@@ -197,6 +247,13 @@ class DebateOrchestrator:
                 round=statement.round,
                 phase="dropped",
                 content=f"Dropped from further rounds — statement similarity {score:.2f} >= threshold, repeating prior point.",
+                # The rebuttal call that triggered the drop still really happened
+                # (real tokens/latency/cost) even though its text is discarded —
+                # carry those metrics forward so the run total isn't undercounted.
+                latency_seconds=statement.latency_seconds,
+                input_tokens=statement.input_tokens,
+                output_tokens=statement.output_tokens,
+                cost_usd=statement.cost_usd,
             )
         )
         return True

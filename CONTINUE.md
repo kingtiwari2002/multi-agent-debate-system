@@ -19,19 +19,77 @@ file, [README.md](README.md), and [multi-agent-debate-system-plan.md](multi-agen
 | 5d | Polish: call-count display, loading/error states, responsive layout | Done |
 | 5e | Config/admin panel — per-agent model picker with default preset | Done |
 | 5f | Provider support — Gemini + NVIDIA NIM adapters | Done |
+| 5g | Real per-call latency + $ cost tracking (all 4 providers) | Done — **not yet run against real keys** |
 
-Everything through 5f has been exercised end-to-end with stubbed LLM adapters (see
+Everything through 5g has been exercised end-to-end with a stubbed LLM adapter (see
 [Verification approach](#verification-approach-used-so-far) below) — but **no run has
-been done yet against real API keys**. Do that before trusting cost/latency
-assumptions or shipping this anywhere.
+been done yet against real API keys**. The stub fabricates plausible token counts and
+latencies to prove the plumbing works; it says nothing about real model quality, real
+latency, or whether the Phase 5g pricing table is still accurate. Do that run before
+trusting any of the three for real.
 
 ## How to resume
 
-Phase 5f is done. Next candidates are the Phase 6 items under
-[Known gaps vs. the original plan](#known-gaps-vs-the-original-plan) — but check
+Phase 5g is done but unverified against real keys — **that's the very next step**, not
+a new phase: run a debate with real `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/
+`GEMINI_API_KEY`/`NVIDIA_API_KEY` and sanity-check the reported cost against each
+provider's own usage dashboard once. After that, Phase 6 candidates are under
+[Known gaps vs. the original plan](#known-gaps-vs-the-original-plan) — check
 `avg_rounds_to_termination` from `python run_eval.py` against real API keys first to
 see whether they're actually worth building. If the direction has changed since this
 was written, update the status table above first.
+
+### Phase 5g implementation notes
+
+- **`LLMAdapter.generate()` now returns a `GenerationResult`** (`src/adapters/base.py`:
+  `text`, `input_tokens`, `output_tokens`, `latency_seconds`) instead of a bare string —
+  a real signature change all four adapters and every caller (`DebateAgent`,
+  `RubricJudge`, `AdversarialAuditorJudge`, `FactCheckerAgent`) had to follow. Latency is
+  measured with `time.perf_counter()` wrapped tightly around the actual SDK call in each
+  adapter (excludes prompt-building overhead, includes real network + inference time).
+  Token counts come from each provider's own response — `response.usage` (Anthropic),
+  `response.usage.prompt_tokens`/`completion_tokens` (OpenAI-shaped: OpenAI itself and
+  NVIDIA NIM, which reuses the same client), `response.usage_metadata.prompt_token_count`/
+  `candidates_token_count` (Gemini) — never estimated from a local tokenizer.
+- **`src/pricing.py`** is a `(provider, model) -> ($/1M input, $/1M output)` table plus
+  `estimate_cost_usd(...)`, which returns `None` — not a fallback rate — for any
+  model not in the table. This matters: unpriced calls show as "cost unknown" in the
+  UI, never as a silently wrong dollar figure. Anthropic's rates came from the
+  `claude-api` skill (authoritative); OpenAI/Gemini/NVIDIA NIM rates came from
+  third-party pricing aggregators (WebSearch, no official API), since this skill has no
+  equivalent authoritative source for those three — re-verify before trusting them
+  beyond rough budgeting, and expect these to go stale — `gemini-2.0-flash` was
+  already retired mid-search while building this table, and is deliberately left
+  unpriced rather than carrying a rate for a model that no longer serves traffic.
+- **`Statement` and `JudgeVerdict`** (`src/models.py`) each gained `latency_seconds`,
+  `input_tokens`, `output_tokens`, `cost_usd` — populated per-call in `orchestrator.py`
+  (statements, via a new `_build_statement` helper) and inside `judge.py` (verdicts,
+  since judges construct their own return value). `FactCheckerAgent` has no per-call
+  record to attach metrics to, so it accumulates its own running totals instead
+  (`total_input_tokens`/etc. on the instance), summed into `DebateRun` alongside
+  everything else. `DebateRun` gained `total_input_tokens`, `total_output_tokens`,
+  `total_latency_seconds`, `total_cost_usd`, and `unpriced_calls` (count of calls whose
+  model had no pricing entry, so the UI can show "~$0.0198 (3 calls unpriced)" instead
+  of quietly under-reporting).
+- **Repetition-drop bookkeeping bug caught during this work and fixed**: when
+  `_check_and_apply_repetition` discards a rebuttal statement for repeating the agent's
+  prior point, the underlying LLM call still genuinely happened (real tokens, real
+  latency, real cost) — only its text is thrown away. The first version of this feature
+  zeroed those fields on the synthetic "dropped" statement that replaces it, silently
+  under-counting the run's real cost. Fixed by carrying the discarded statement's real
+  `latency_seconds`/`input_tokens`/`output_tokens`/`cost_usd` onto the "dropped" one
+  instead of defaulting them — verified with a targeted stub test that forces a
+  repetition (see verification section below).
+- **Frontend**: `web/frontend/src/format.js` (`formatCost`/`formatLatency`) is shared by
+  `AgentColumn` (per-statement badge), `JudgePanel` (per-verdict), and `StatusBanner`/
+  `ReplayView` (run-level totals + unpriced-call count). `formatCost(null)` renders
+  "cost unknown", never `$0.0000` or an omitted figure — the distinction matters since a
+  real free/zero-cost call should look different from an un-priced one.
+- NVIDIA NIM's curated model dropdown (`ConfigPanel.jsx`) leads with the two models that
+  actually have a pricing entry (`nvidia/llama-3.1-nemotron-super-49b-v1`,
+  `nvidia/nemotron-nano-9b-v2`); the earlier `meta/llama-3.1-*` placeholders are still
+  selectable but show "cost unknown" until someone adds verified rates for them to
+  `src/pricing.py`.
 
 ### Phase 5e implementation notes
 
@@ -192,6 +250,7 @@ src/orchestrator.py    DebateOrchestrator — the state machine, on_event stream
 src/presets.py         build_adversarial_agents / build_ensemble_agents / build_agents
 src/judge_stats.py     Cross-run disagreement-rate log (runs/judge_agreement_log.jsonl)
 src/models.py          AgentConfig, Statement, ClaimFlag, JudgeVerdict, DebateRun
+src/pricing.py         $/1M-token rates + estimate_cost_usd — returns None when unpriced
 src/eval/               baseline.py, grader.py, harness.py — eval harness
 
 web/backend/main.py         FastAPI app: /api/debates, /ws/debates/{id}, static mount
@@ -203,6 +262,7 @@ web/frontend/src/views/               LiveDebateView, HistoryView
 web/frontend/src/components/          DebateForm, AgentColumn, FactCheckPanel,
                                        StatusBanner, JudgePanel, HistoryTable, ReplayView,
                                        ConfigPanel
+web/frontend/src/format.js            formatCost / formatLatency — shared by the above
 
 main.py          CLI: single debate
 run_eval.py      CLI: eval harness

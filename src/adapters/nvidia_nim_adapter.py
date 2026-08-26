@@ -1,8 +1,9 @@
 import os
+import time
 
 from openai import OpenAI
 
-from .base import LLMAdapter
+from .base import GenerationResult, LLMAdapter
 
 
 class NvidiaNimAdapter(LLMAdapter):
@@ -12,11 +13,12 @@ class NvidiaNimAdapter(LLMAdapter):
 
     BASE_URL = "https://integrate.api.nvidia.com/v1"
 
-    def __init__(self, model: str = "meta/llama-3.1-70b-instruct"):
+    def __init__(self, model: str = "nvidia/llama-3.1-nemotron-super-49b-v1"):
         self.model = model
         self._client = OpenAI(api_key=os.environ["NVIDIA_API_KEY"], base_url=self.BASE_URL)
 
-    def generate(self, system: str, user: str, temperature: float = 0.7) -> str:
+    def generate(self, system: str, user: str, temperature: float = 0.7) -> GenerationResult:
+        start = time.perf_counter()
         response = self._client.chat.completions.create(
             model=self.model,
             temperature=temperature,
@@ -25,4 +27,10 @@ class NvidiaNimAdapter(LLMAdapter):
                 {"role": "user", "content": user},
             ],
         )
-        return response.choices[0].message.content
+        latency = time.perf_counter() - start
+        return GenerationResult(
+            text=response.choices[0].message.content,
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            latency_seconds=latency,
+        )

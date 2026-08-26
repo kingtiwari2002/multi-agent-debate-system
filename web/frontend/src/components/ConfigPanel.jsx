@@ -11,7 +11,12 @@ const MODELS_BY_PROVIDER = {
   anthropic: ["claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5", "claude-fable-5"],
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3-mini"],
   gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
-  nvidia_nim: ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-405b-instruct", "nvidia/nemotron-4-340b-instruct"],
+  nvidia_nim: [
+    "nvidia/llama-3.1-nemotron-super-49b-v1",
+    "nvidia/nemotron-nano-9b-v2",
+    "meta/llama-3.1-70b-instruct",
+    "meta/llama-3.1-405b-instruct",
+  ],
 };
 
 function modelOptionsFor(provider, currentModel) {

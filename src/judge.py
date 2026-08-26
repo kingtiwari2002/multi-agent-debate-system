@@ -3,6 +3,7 @@ import re
 
 from .adapters import build_adapter
 from .models import AgentConfig, JudgeVerdict, Statement
+from .pricing import estimate_cost_usd
 
 
 def _parse_json(raw: str) -> dict:
@@ -27,6 +28,8 @@ class RubricJudge:
     JUDGE_ID = "judge_a_rubric"
 
     def __init__(self, provider: str = "anthropic", model: str = "claude-sonnet-5"):
+        self.provider = provider
+        self.model = model
         self._adapter = build_adapter(provider, model)
         self.call_count = 0
 
@@ -51,13 +54,17 @@ class RubricJudge:
             "}"
         )
         self.call_count += 1
-        raw = self._adapter.generate(system, user, temperature=0.0)
-        parsed = _parse_json(raw)
+        result = self._adapter.generate(system, user, temperature=0.0)
+        parsed = _parse_json(result.text)
         return JudgeVerdict(
             judge_id=self.JUDGE_ID,
             scores=parsed.get("scores", {}),
             winner=parsed.get("winner", ""),
-            reasoning=parsed.get("reasoning", raw),
+            reasoning=parsed.get("reasoning", result.text),
+            latency_seconds=result.latency_seconds,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            cost_usd=estimate_cost_usd(self.provider, self.model, result.input_tokens, result.output_tokens),
         )
 
 
@@ -70,6 +77,8 @@ class AdversarialAuditorJudge:
     JUDGE_ID = "judge_b_auditor"
 
     def __init__(self, provider: str = "openai", model: str = "gpt-4o"):
+        self.provider = provider
+        self.model = model
         self._adapter = build_adapter(provider, model)
         self.call_count = 0
 
@@ -94,8 +103,8 @@ class AdversarialAuditorJudge:
             "}"
         )
         self.call_count += 1
-        raw = self._adapter.generate(system, user, temperature=0.0)
-        parsed = _parse_json(raw)
+        result = self._adapter.generate(system, user, temperature=0.0)
+        parsed = _parse_json(result.text)
         return JudgeVerdict(
             judge_id=self.JUDGE_ID,
             scores={
@@ -103,5 +112,9 @@ class AdversarialAuditorJudge:
                 "weakest_unrefuted_point": parsed.get("weakest_unrefuted_point", {}),
             },
             winner=parsed.get("winner", ""),
-            reasoning=parsed.get("reasoning", raw),
+            reasoning=parsed.get("reasoning", result.text),
+            latency_seconds=result.latency_seconds,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+            cost_usd=estimate_cost_usd(self.provider, self.model, result.input_tokens, result.output_tokens),
         )

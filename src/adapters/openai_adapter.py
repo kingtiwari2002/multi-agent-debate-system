@@ -1,8 +1,9 @@
 import os
+import time
 
 from openai import OpenAI
 
-from .base import LLMAdapter
+from .base import GenerationResult, LLMAdapter
 
 
 class OpenAIAdapter(LLMAdapter):
@@ -10,7 +11,8 @@ class OpenAIAdapter(LLMAdapter):
         self.model = model
         self._client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-    def generate(self, system: str, user: str, temperature: float = 0.7) -> str:
+    def generate(self, system: str, user: str, temperature: float = 0.7) -> GenerationResult:
+        start = time.perf_counter()
         response = self._client.chat.completions.create(
             model=self.model,
             temperature=temperature,
@@ -19,4 +21,10 @@ class OpenAIAdapter(LLMAdapter):
                 {"role": "user", "content": user},
             ],
         )
-        return response.choices[0].message.content
+        latency = time.perf_counter() - start
+        return GenerationResult(
+            text=response.choices[0].message.content,
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+            latency_seconds=latency,
+        )

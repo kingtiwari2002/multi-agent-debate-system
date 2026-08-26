@@ -1,3 +1,5 @@
+import { formatCost } from "../format";
+
 const STATUS_TEXT = {
   idle: "Enter a topic to start a debate.",
   connecting: "Connecting…",
@@ -19,6 +21,9 @@ export default function StatusBanner({ status, finalRun, errorMessage, tieBreakT
           {" · "}Judges agreed: {finalRun.judges_agreed ? "yes" : "no"}
           {finalRun.tie_break_triggered ? " · tie-break was used" : ""}
           {typeof finalRun.total_llm_calls === "number" ? ` · ${finalRun.total_llm_calls} LLM calls` : ""}
+          {typeof finalRun.total_latency_seconds === "number" ? ` · ${finalRun.total_latency_seconds.toFixed(1)}s total` : ""}
+          {typeof finalRun.total_cost_usd === "number" ? ` · ~${formatCost(finalRun.total_cost_usd)}` : ""}
+          {finalRun.unpriced_calls > 0 ? ` (${finalRun.unpriced_calls} call${finalRun.unpriced_calls === 1 ? "" : "s"} unpriced)` : ""}
         </span>
       )}
     </div>

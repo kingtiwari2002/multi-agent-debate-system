@@ -136,6 +136,12 @@
   font-size: 0.9rem;
 }
 
+.verdict-card__stats {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 400;
+}
+
 .verdict-card__reasoning {
   margin: 8px 0 0;
   font-size: 0.82rem;
@@ -437,6 +443,12 @@
 .statement__round {
   color: var(--text-dim);
   font-size: 0.75rem;
+}
+
+.statement__stats {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  margin-left: auto;
 }
 
 .statement p {

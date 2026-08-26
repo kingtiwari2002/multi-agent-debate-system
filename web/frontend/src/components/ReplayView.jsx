@@ -3,6 +3,7 @@ import { fetchDebate } from "../api";
 import AgentColumn from "./AgentColumn";
 import FactCheckPanel from "./FactCheckPanel";
 import JudgePanel from "./JudgePanel";
+import { formatCost } from "../format";
 
 export default function ReplayView({ runId, onBack }) {
   const [run, setRun] = useState(null);
@@ -31,6 +32,9 @@ export default function ReplayView({ runId, onBack }) {
           <p className="replay-meta">
             {run.mode} · {new Date(run.created_at).toLocaleString()} · {run.max_rounds} rounds
             {typeof run.total_llm_calls === "number" ? ` · ${run.total_llm_calls} LLM calls` : ""}
+            {typeof run.total_latency_seconds === "number" ? ` · ${run.total_latency_seconds.toFixed(1)}s total` : ""}
+            {typeof run.total_cost_usd === "number" ? ` · ~${formatCost(run.total_cost_usd)}` : ""}
+            {run.unpriced_calls > 0 ? ` (${run.unpriced_calls} call${run.unpriced_calls === 1 ? "" : "s"} unpriced)` : ""}
           </p>
 
           <FactCheckPanel flags={run.claim_flags || []} />

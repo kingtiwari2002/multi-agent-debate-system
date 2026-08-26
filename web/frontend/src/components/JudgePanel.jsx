@@ -1,12 +1,21 @@
+import { formatCost, formatLatency } from "../format";
+
 function VerdictCard({ verdict, label }) {
   const isRubric = verdict.judge_id === "judge_a_rubric";
   const scores = verdict.scores || {};
+  const latency = formatLatency(verdict.latency_seconds);
 
   return (
     <div className="verdict-card">
       <h4>{label}</h4>
       <p className="verdict-card__winner">
         Winner: <strong>{verdict.winner || "—"}</strong>
+        {latency && (
+          <span className="verdict-card__stats">
+            {" · "}
+            {latency} · {formatCost(verdict.cost_usd)}
+          </span>
+        )}
       </p>
       {isRubric ? (
         <table className="rubric-table">

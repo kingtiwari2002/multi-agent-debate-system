@@ -1,4 +1,4 @@
-from .adapters import build_adapter
+from .adapters import GenerationResult, build_adapter
 from .models import AgentConfig, Statement
 
 
@@ -11,7 +11,7 @@ class DebateAgent:
         self._adapter = build_adapter(config.provider, config.model)
         self.call_count = 0
 
-    def _generate(self, system: str, user: str) -> str:
+    def _generate(self, system: str, user: str) -> GenerationResult:
         self.call_count += 1
         return self._adapter.generate(system, user, self.config.temperature)
 
@@ -31,7 +31,7 @@ class DebateAgent:
             f"[Round {s.round} / {s.phase}] {s.agent_id}: {s.content}" for s in transcript
         )
 
-    def opening_statement(self, topic: str) -> str:
+    def opening_statement(self, topic: str) -> GenerationResult:
         user = (
             f"Debate topic: {topic}\n\n"
             "Give your opening statement establishing your position. "
@@ -39,7 +39,7 @@ class DebateAgent:
         )
         return self._generate(self._system_prompt(), user)
 
-    def rebuttal(self, topic: str, round_num: int, public_transcript: list[Statement], fact_flags: str = "") -> str:
+    def rebuttal(self, topic: str, round_num: int, public_transcript: list[Statement], fact_flags: str = "") -> GenerationResult:
         flags_note = f"\n\nFact-checker flagged these unsupported claims — substantiate or withdraw them:\n{fact_flags}" if fact_flags else ""
         user = (
             f"Debate topic: {topic}\n\n"
@@ -50,7 +50,7 @@ class DebateAgent:
         )
         return self._generate(self._system_prompt(), user)
 
-    def closing_statement(self, topic: str, public_transcript: list[Statement], unresolved_flags: str = "") -> str:
+    def closing_statement(self, topic: str, public_transcript: list[Statement], unresolved_flags: str = "") -> GenerationResult:
         flags_note = f"\n\nUnresolved fact-check flags to address:\n{unresolved_flags}" if unresolved_flags else ""
         user = (
             f"Debate topic: {topic}\n\n"
@@ -62,7 +62,7 @@ class DebateAgent:
 
     def tie_break_response(
         self, topic: str, public_transcript: list[Statement], judge_a_reasoning: str, judge_b_reasoning: str
-    ) -> str:
+    ) -> GenerationResult:
         user = (
             f"Debate topic: {topic}\n\n"
             f"Public transcript so far:\n{self._format_transcript(public_transcript)}\n\n"

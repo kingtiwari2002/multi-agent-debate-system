@@ -20,6 +20,12 @@ class Statement:
     phase: str  # "opening" | "rebuttal" | "closing" | "dropped"
     content: str
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    # Real per-call metrics from the provider's own response — 0/None for
+    # synthetic statements (e.g. "dropped") that don't make an LLM call.
+    latency_seconds: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = None
 
 
 @dataclass
@@ -36,6 +42,10 @@ class JudgeVerdict:
     scores: dict
     winner: str
     reasoning: str
+    latency_seconds: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = None
 
 
 @dataclass
@@ -57,6 +67,11 @@ class DebateRun:
     termination_reason: str = ""
     judge_a_config: dict = field(default_factory=dict)
     judge_b_config: dict = field(default_factory=dict)
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_latency_seconds: float = 0.0
+    total_cost_usd: float = 0.0
+    unpriced_calls: int = 0  # calls whose (provider, model) has no entry in src/pricing.py
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
     def to_dict(self) -> dict:
@@ -78,5 +93,10 @@ class DebateRun:
             "termination_reason": self.termination_reason,
             "judge_a_config": self.judge_a_config,
             "judge_b_config": self.judge_b_config,
+            "total_input_tokens": self.total_input_tokens,
+            "total_output_tokens": self.total_output_tokens,
+            "total_latency_seconds": self.total_latency_seconds,
+            "total_cost_usd": self.total_cost_usd,
+            "unpriced_calls": self.unpriced_calls,
             "created_at": self.created_at,
         }
