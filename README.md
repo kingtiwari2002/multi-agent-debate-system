@@ -98,6 +98,18 @@ requirement of the architecture; see [CONTINUE.md](CONTINUE.md) for the planned
 per-agent model config panel (Phase 5e, not yet built) that will make this
 user-configurable instead of hardcoded in `src/presets.py`.
 
+## Optional: routing through AgentRouter
+
+[AgentRouter](https://agentrouter.org) is an optional third-party routing layer that
+can sit in front of a call instead of hitting Anthropic/OpenAI directly — it is **not**
+a replacement for the `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` setup above, which keeps
+working exactly as-is whether or not AgentRouter is configured. To use it for a
+particular agent, judge, or fact-checker slot, set `AGENTROUTER_API_KEY` in `.env` and
+set that slot's `provider` to `agentrouter` (OpenAI-compatible endpoint) or
+`agentrouter_anthropic` (Anthropic-compatible endpoint) — the `model` field stays
+whatever you'd normally pass (`gpt-4o`, `claude-sonnet-5`, etc.), since AgentRouter
+routes by model name. Nothing changes for any slot left on `anthropic`/`openai`.
+
 ## Status
 
 Phases 1–5d of the build plan are complete (core loop, 5 agents + fact-checker +

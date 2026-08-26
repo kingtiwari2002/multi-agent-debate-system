@@ -3,12 +3,19 @@ from .anthropic_adapter import AnthropicAdapter
 from .openai_adapter import OpenAIAdapter
 from .gemini_adapter import GeminiAdapter
 from .nvidia_nim_adapter import NvidiaNimAdapter
+from .agentrouter_adapter import AgentRouterAdapter
+from .agentrouter_anthropic_adapter import AgentRouterAnthropicAdapter
 
 _REGISTRY = {
     "anthropic": AnthropicAdapter,
     "openai": OpenAIAdapter,
     "gemini": GeminiAdapter,
     "nvidia_nim": NvidiaNimAdapter,
+    # Optional third-party gateway (https://agentrouter.org) — only reachable
+    # if an agent/judge/fact-checker config explicitly picks one of these two
+    # provider strings; see AGENTROUTER_API_KEY in .env.example.
+    "agentrouter": AgentRouterAdapter,
+    "agentrouter_anthropic": AgentRouterAnthropicAdapter,
 }
 
 
@@ -27,5 +34,7 @@ __all__ = [
     "OpenAIAdapter",
     "GeminiAdapter",
     "NvidiaNimAdapter",
+    "AgentRouterAdapter",
+    "AgentRouterAnthropicAdapter",
     "build_adapter",
 ]
