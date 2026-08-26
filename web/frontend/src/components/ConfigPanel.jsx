@@ -1,13 +1,34 @@
 import { useState } from "react";
 
+const PROVIDERS = [
+  { value: "anthropic", label: "Anthropic" },
+  { value: "openai", label: "OpenAI" },
+  { value: "gemini", label: "Gemini" },
+  { value: "nvidia_nim", label: "NVIDIA NIM" },
+];
+
 const MODELS_BY_PROVIDER = {
   anthropic: ["claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5", "claude-fable-5"],
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3-mini"],
+  gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+  nvidia_nim: ["meta/llama-3.1-70b-instruct", "meta/llama-3.1-405b-instruct", "nvidia/nemotron-4-340b-instruct"],
 };
 
 function modelOptionsFor(provider, currentModel) {
   const options = MODELS_BY_PROVIDER[provider] || [];
   return options.includes(currentModel) ? options : [currentModel, ...options];
+}
+
+function ProviderSelect({ value, disabled, onChange }) {
+  return (
+    <select value={value} disabled={disabled} onChange={onChange}>
+      {PROVIDERS.map((p) => (
+        <option key={p.value} value={p.value}>
+          {p.label}
+        </option>
+      ))}
+    </select>
+  );
 }
 
 function AgentRow({ agent, onChange, disabled }) {
@@ -17,7 +38,7 @@ function AgentRow({ agent, onChange, disabled }) {
         {agent.agent_id}
         {agent.role === "fact_checker" && <span className="badge config-row__role">fact-checker</span>}
       </span>
-      <select
+      <ProviderSelect
         value={agent.provider}
         disabled={disabled}
         onChange={(e) => {
@@ -25,10 +46,7 @@ function AgentRow({ agent, onChange, disabled }) {
           const model = (MODELS_BY_PROVIDER[provider] || [])[0] || agent.model;
           onChange({ ...agent, provider, model });
         }}
-      >
-        <option value="anthropic">Anthropic</option>
-        <option value="openai">OpenAI</option>
-      </select>
+      />
       <select
         value={agent.model}
         disabled={disabled}
@@ -66,7 +84,7 @@ function JudgeRow({ label, judge, onChange, disabled }) {
   return (
     <div className="config-row config-row--judge">
       <span className="config-row__id">{label}</span>
-      <select
+      <ProviderSelect
         value={judge.provider}
         disabled={disabled}
         onChange={(e) => {
@@ -74,10 +92,7 @@ function JudgeRow({ label, judge, onChange, disabled }) {
           const model = (MODELS_BY_PROVIDER[provider] || [])[0] || judge.model;
           onChange({ ...judge, provider, model });
         }}
-      >
-        <option value="anthropic">Anthropic</option>
-        <option value="openai">OpenAI</option>
-      </select>
+      />
       <select
         value={judge.model}
         disabled={disabled}

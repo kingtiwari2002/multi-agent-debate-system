@@ -1,10 +1,14 @@
 from .base import LLMAdapter
 from .anthropic_adapter import AnthropicAdapter
 from .openai_adapter import OpenAIAdapter
+from .gemini_adapter import GeminiAdapter
+from .nvidia_nim_adapter import NvidiaNimAdapter
 
 _REGISTRY = {
     "anthropic": AnthropicAdapter,
     "openai": OpenAIAdapter,
+    "gemini": GeminiAdapter,
+    "nvidia_nim": NvidiaNimAdapter,
 }
 
 
@@ -16,4 +20,4 @@ def build_adapter(provider: str, model: str) -> LLMAdapter:
     return adapter_cls(model=model)
 
 
-__all__ = ["LLMAdapter", "AnthropicAdapter", "OpenAIAdapter", "build_adapter"]
+__all__ = ["LLMAdapter", "AnthropicAdapter", "OpenAIAdapter", "GeminiAdapter", "NvidiaNimAdapter", "build_adapter"]

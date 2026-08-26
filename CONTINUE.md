@@ -18,15 +18,16 @@ file, [README.md](README.md), and [multi-agent-debate-system-plan.md](multi-agen
 | 5c | Frontend: judgment panel + history/replay view | Done |
 | 5d | Polish: call-count display, loading/error states, responsive layout | Done |
 | 5e | Config/admin panel — per-agent model picker with default preset | Done |
+| 5f | Provider support — Gemini + NVIDIA NIM adapters | Done |
 
-Everything through 5e has been exercised end-to-end with stubbed LLM adapters (see
+Everything through 5f has been exercised end-to-end with stubbed LLM adapters (see
 [Verification approach](#verification-approach-used-so-far) below) — but **no run has
 been done yet against real API keys**. Do that before trusting cost/latency
 assumptions or shipping this anywhere.
 
 ## How to resume
 
-Phase 5e is done. Next candidates are the Phase 6 items under
+Phase 5f is done. Next candidates are the Phase 6 items under
 [Known gaps vs. the original plan](#known-gaps-vs-the-original-plan) — but check
 `avg_rounds_to_termination` from `python run_eval.py` against real API keys first to
 see whether they're actually worth building. If the direction has changed since this
@@ -56,6 +57,30 @@ was written, update the status table above first.
   screenshots showed the config panel, per-agent opinion text, and judge cards with
   model names all rendering correctly. No test files were committed (same throwaway
   convention as every other phase — see below).
+
+### Phase 5f implementation notes
+
+- Two new adapters in `src/adapters/`: `GeminiAdapter` (Google's unified `google-genai`
+  SDK, `genai.Client(api_key=...).models.generate_content(...)`, reads
+  `GEMINI_API_KEY`) and `NvidiaNimAdapter` (reuses the `openai` client pointed at
+  NVIDIA's OpenAI-compatible endpoint `https://integrate.api.nvidia.com/v1`, reads
+  `NVIDIA_API_KEY` — no new SDK dependency needed for NIM itself).
+  Both registered in `src/adapters/__init__.py`'s `_REGISTRY` under `"gemini"` and
+  `"nvidia_nim"`.
+- `requirements.txt` gained `google-genai`; `.env.example` gained `GEMINI_API_KEY` and
+  `NVIDIA_API_KEY`.
+- Frontend `ConfigPanel.jsx`: provider dropdowns (agents and judges) now list all four
+  providers, each with its own curated model list. No backend validation was added
+  beyond what already existed for anthropic/openai — an unrecognized `provider` string
+  still surfaces as a run-time error event exactly as before, symmetric across all four.
+- `src/presets.py`'s default roster is untouched (still the Claude-heavy + one-GPT-4o
+  mix from Phase 1) — Gemini/NIM are opt-in via the config panel or a custom roster
+  payload, not part of the default preset. Revisit if there's a reason to rebalance the
+  default mix now that more providers exist.
+- Verified with the same stub-adapter approach: a roster mixing all four providers
+  (including judges on Gemini and NIM) ran end-to-end through the orchestrator and
+  WebSocket stream, and a browser screenshot confirmed both new providers appear and
+  swap their model lists correctly in the config panel.
 
 ## Key decisions worth knowing (not obvious from reading the code alone)
 
@@ -158,7 +183,7 @@ orchestrator bug.
 ## File map
 
 ```
-src/adapters/         LLMAdapter interface + Anthropic/OpenAI implementations
+src/adapters/         LLMAdapter interface + Anthropic/OpenAI/Gemini/NVIDIA NIM implementations
 src/agent.py           DebateAgent: opening/rebuttal/closing/tie_break_response
 src/judge.py           RubricJudge (Judge A), AdversarialAuditorJudge (Judge B)
 src/fact_checker.py    FactCheckerAgent
