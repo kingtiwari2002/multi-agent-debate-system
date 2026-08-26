@@ -32,12 +32,13 @@ PRICING: dict[tuple[str, str], tuple[float, float]] = {
     ("gemini", "gemini-2.5-flash"): (0.15, 1.25),
     # gemini-2.0-flash has no current entry — Google retired it in 2026;
     # deliberately left unpriced rather than showing a stale rate.
-    # NVIDIA NIM — third-party aggregated, verify against build.nvidia.com/pricing.
-    ("nvidia_nim", "nvidia/llama-3.1-nemotron-super-49b-v1"): (0.10, 0.40),
-    ("nvidia_nim", "nvidia/nemotron-nano-9b-v2"): (0.04, 0.16),
-    # meta/llama-3.1-70b-instruct, meta/llama-3.1-405b-instruct, and
-    # nvidia/nemotron-4-340b-instruct have no current entry — NIM's hosted
-    # per-model rates weren't confirmed for them; add once verified.
+    # NVIDIA NIM — nvidia/llama-3.1-nemotron-super-49b-v1 and
+    # nvidia/nemotron-nano-9b-v2 (the models this table used to price) were
+    # retired from NVIDIA's catalog and replaced in the curated list with
+    # nvidia/nemotron-3-super-120b-a12b and nvidia/nemotron-3-nano-30b-a3b —
+    # confirmed live via /v1/models, but their per-model rates haven't been
+    # verified against build.nvidia.com/pricing yet, so deliberately left
+    # unpriced rather than carrying forward the old, now-wrong rates.
 }
 
 

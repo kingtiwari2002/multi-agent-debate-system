@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "debate-backend",
-      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeExecutable": "python",
       "runtimeArgs": ["web/backend/main.py"],
       "port": 55786
     }

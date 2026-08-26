@@ -13,7 +13,7 @@ class NvidiaNimAdapter(LLMAdapter):
 
     BASE_URL = "https://integrate.api.nvidia.com/v1"
 
-    def __init__(self, model: str = "nvidia/llama-3.1-nemotron-super-49b-v1"):
+    def __init__(self, model: str = "nvidia/nemotron-3-super-120b-a12b"):
         self.model = model
         self._client = OpenAI(api_key=os.environ["NVIDIA_API_KEY"], base_url=self.BASE_URL)
 

@@ -5,6 +5,34 @@ someone else) with no lost context. If you're an AI assistant resuming this: rea
 file, [README.md](README.md), and [multi-agent-debate-system-plan.md](multi-agent-debate-system-plan.md)
 (the original design doc) before making changes.
 
+## Local environment note (read this first if you're a fresh session)
+
+This copy was moved here via a manual zip export from a cloud Claude Code session, not
+`git clone` — **there is no `.git` directory in this folder.** It is not currently
+tracked by, or connected to, the original GitHub repo
+(`https://github.com/kingtiwari2002/multi-agent-debate-system`, branch
+`claude/repo-sync-planning-k7fkxo` as of this export). If you want version control back:
+`git init` fresh, or add that URL as a remote and reconcile history yourself — don't
+assume `git status`/`git push` do anything meaningful until one of those happens.
+
+`node_modules/` and `web/frontend/dist/` were excluded from the export (regenerable,
+large). Before running anything:
+
+```bash
+pip install -r requirements.txt
+cd web/frontend && npm install && npm run build && cd ../..
+```
+
+**`.env` already has real values for all five keys** (`ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, `GEMINI_API_KEY`, `NVIDIA_API_KEY`, `AGENTROUTER_API_KEY`) — copied
+over from the cloud session where the user filled them in. Treat this file as live
+secrets, not a template. As of this export **no debate has actually been run against
+any of them** — that's still the top priority next step (see below).
+
+`web/backend/main.py`'s `uvicorn.run(...)` binds to `host="127.0.0.1"` (localhost-only),
+changed from `0.0.0.0` late in the cloud session at the user's request for local-only
+access. If you need it reachable from another device on the network, change that back.
+
 ## Status
 
 | Phase | What | Status |
@@ -20,24 +48,29 @@ file, [README.md](README.md), and [multi-agent-debate-system-plan.md](multi-agen
 | 5e | Config/admin panel — per-agent model picker with default preset | Done |
 | 5f | Provider support — Gemini + NVIDIA NIM adapters | Done |
 | 5g | Real per-call latency + $ cost tracking (all 4 providers) | Done — **not yet run against real keys** |
+| 5h | Provider support — AgentRouter (OpenAI- and Anthropic-compatible gateway) | Done |
 
-Everything through 5g has been exercised end-to-end with a stubbed LLM adapter (see
+Everything through 5h has been exercised end-to-end with a stubbed LLM adapter (see
 [Verification approach](#verification-approach-used-so-far) below) — but **no run has
 been done yet against real API keys**. The stub fabricates plausible token counts and
 latencies to prove the plumbing works; it says nothing about real model quality, real
 latency, or whether the Phase 5g pricing table is still accurate. Do that run before
-trusting any of the three for real.
+trusting any of the three for real. `.env` now has real keys for this (see the local
+environment note above) — the only reason it hasn't happened yet is that running it
+costs real money and nobody had pulled the trigger before this export.
 
 ## How to resume
 
-Phase 5g is done but unverified against real keys — **that's the very next step**, not
-a new phase: run a debate with real `ANTHROPIC_API_KEY`/`OPENAI_API_KEY`/
-`GEMINI_API_KEY`/`NVIDIA_API_KEY` and sanity-check the reported cost against each
-provider's own usage dashboard once. After that, Phase 6 candidates are under
-[Known gaps vs. the original plan](#known-gaps-vs-the-original-plan) — check
-`avg_rounds_to_termination` from `python run_eval.py` against real API keys first to
-see whether they're actually worth building. If the direction has changed since this
-was written, update the status table above first.
+**The very next concrete action, now that real keys exist**: install deps (see above),
+start the backend (`python web/backend/main.py`), and run one real debate — small
+(`rounds=1`, few agents) the first time — then sanity-check the reported
+`total_cost_usd` against each provider's own usage dashboard, and eyeball whether the
+generated opinions actually look coherent. This is the single most-repeated unresolved
+item across this whole file; do it before adding anything else. After that, Phase 6
+candidates are under [Known gaps vs. the original plan](#known-gaps-vs-the-original-plan)
+— check `avg_rounds_to_termination` from `python run_eval.py` (also now runnable for
+real) to see whether they're actually worth building. If the direction has changed
+since this was written, update the status table above first.
 
 ### Phase 5g implementation notes
 
@@ -90,6 +123,41 @@ was written, update the status table above first.
   `nvidia/nemotron-nano-9b-v2`); the earlier `meta/llama-3.1-*` placeholders are still
   selectable but show "cost unknown" until someone adds verified rates for them to
   `src/pricing.py`.
+
+### Phase 5h implementation notes
+
+- Two more adapters, same shape as Phase 5f's: `AgentRouterAdapter`
+  (`src/adapters/agentrouter_adapter.py`) reuses the `openai` client pointed at
+  AgentRouter's OpenAI-compatible endpoint (`https://agentrouter.org/v1`), and
+  `AgentRouterAnthropicAdapter` (`src/adapters/agentrouter_anthropic_adapter.py`) reuses
+  the `anthropic` client pointed at `https://agentrouter.org/`. Both read
+  `AGENTROUTER_API_KEY`. Registered as `"agentrouter"` and `"agentrouter_anthropic"` in
+  `src/adapters/__init__.py`'s `_REGISTRY` — no new SDK dependency, no orchestrator
+  changes, since provider selection was already a generic per-slot config field.
+- Confirmed (not assumed) that the Anthropic SDK sends `api_key=...` as the `X-Api-Key`
+  header by default — that's exactly what AgentRouter's Anthropic-compatible endpoint
+  expects, so `AgentRouterAnthropicAdapter` needed zero custom header code beyond
+  `base_url` + `api_key`.
+- This was explicitly requested as **additive and isolated**: direct
+  `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` usage is untouched, and nothing routes through
+  AgentRouter unless a slot's `provider` is explicitly set to one of the two new
+  strings. Verified by inspecting a constructed `anthropic` adapter's `base_url`/
+  `api_key` with `AGENTROUTER_API_KEY` also set, to prove zero cross-talk.
+- `.env.example` gained `AGENTROUTER_API_KEY` (documented as optional); README gained an
+  "Optional: routing through AgentRouter" section.
+- Frontend `ConfigPanel.jsx`: added both as provider options (`AgentRouter (OpenAI)` /
+  `AgentRouter (Anthropic)`) for every agent/fact-checker/judge slot, each with a
+  curated model list matching the provider it fronts (AgentRouter routes by model name,
+  same list as the underlying `openai`/`anthropic` entries). Widened the
+  `.config-row`/`.config-row--judge` grid columns slightly so the longer labels don't
+  clip.
+- **No pricing entries added for `agentrouter`/`agentrouter_anthropic`** in
+  `src/pricing.py` — AgentRouter's own billing/markup wasn't verified, so calls through
+  it show "cost unknown" rather than assuming it bills at the underlying provider's
+  direct rate. Add real rates there if/when confirmed.
+- Verified with the same stub-adapter approach as every other provider phase, plus a
+  browser check of a debate mixing NVIDIA NIM, both AgentRouter variants, and direct
+  Anthropic/OpenAI agents in one run, run through the built UI end-to-end.
 
 ### Phase 5e implementation notes
 
@@ -179,10 +247,13 @@ was written, update the status table above first.
   the change. `web/frontend/src/api.js` uses `window.location.origin` for its API
   base, so this only works when frontend and backend are same-origin (i.e., always, in
   this setup).
-- **Total LLM call count is tracked and shown**, not a dollar cost — a per-model
-  pricing table would go stale and wasn't worth the maintenance burden. `call_count` is
-  incremented on every `DebateAgent`/`RubricJudge`/`AdversarialAuditorJudge`/
-  `FactCheckerAgent` instance and summed into `DebateRun.total_llm_calls`.
+- **Total LLM call count was tracked from early on; a dollar cost was deliberately
+  deferred at first** — a per-model pricing table would go stale and wasn't worth the
+  maintenance burden, went the original reasoning. **That call was reversed in Phase
+  5g** once real cost/latency became the explicit ask; see the Phase 5g notes above and
+  `src/pricing.py`. `call_count` is still incremented on every `DebateAgent`/
+  `RubricJudge`/`AdversarialAuditorJudge`/`FactCheckerAgent` instance and summed into
+  `DebateRun.total_llm_calls`, unchanged.
 
 ## Known gaps vs. the original plan
 
@@ -241,7 +312,8 @@ orchestrator bug.
 ## File map
 
 ```
-src/adapters/         LLMAdapter interface + Anthropic/OpenAI/Gemini/NVIDIA NIM implementations
+src/adapters/         LLMAdapter interface + Anthropic/OpenAI/Gemini/NVIDIA NIM/
+                       AgentRouter (both variants) implementations
 src/agent.py           DebateAgent: opening/rebuttal/closing/tie_break_response
 src/judge.py           RubricJudge (Judge A), AdversarialAuditorJudge (Judge B)
 src/fact_checker.py    FactCheckerAgent
