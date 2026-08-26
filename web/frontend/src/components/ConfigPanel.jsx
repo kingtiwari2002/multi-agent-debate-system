@@ -5,6 +5,8 @@ const PROVIDERS = [
   { value: "openai", label: "OpenAI" },
   { value: "gemini", label: "Gemini" },
   { value: "nvidia_nim", label: "NVIDIA NIM" },
+  { value: "agentrouter", label: "AgentRouter (OpenAI)" },
+  { value: "agentrouter_anthropic", label: "AgentRouter (Anthropic)" },
 ];
 
 const MODELS_BY_PROVIDER = {
@@ -17,6 +19,10 @@ const MODELS_BY_PROVIDER = {
     "meta/llama-3.1-70b-instruct",
     "meta/llama-3.1-405b-instruct",
   ],
+  // AgentRouter routes by model name to the underlying provider, so the useful
+  // model lists are the same ones as the provider it's fronting.
+  agentrouter: ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o3-mini"],
+  agentrouter_anthropic: ["claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5", "claude-fable-5"],
 };
 
 function modelOptionsFor(provider, currentModel) {

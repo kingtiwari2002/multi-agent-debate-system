@@ -259,13 +259,13 @@
 
 .config-row {
   display: grid;
-  grid-template-columns: 190px 130px 230px 1fr 70px;
+  grid-template-columns: 190px 175px 220px 1fr 70px;
   gap: 8px;
   align-items: center;
 }
 
 .config-row--judge {
-  grid-template-columns: 200px 130px 230px;
+  grid-template-columns: 200px 175px 220px;
 }
 
 .config-row__id {
